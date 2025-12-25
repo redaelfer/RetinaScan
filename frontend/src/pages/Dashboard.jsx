@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 const Dashboard = () => {
   const [file, setFile] = useState(null);
   const [symptoms, setSymptoms] = useState('');
+  const [anamnesis, setAnamnesis] = useState(''); 
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
@@ -44,16 +45,19 @@ const Dashboard = () => {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('symptoms', symptoms);
+    formData.append('anamnesis', anamnesis);
+    formData.append('consent', 'true');     
 
     try {
       const response = await axios.post('http://localhost:8080/api/scans/upload', formData, authConfig);
       setResult(response.data); 
       fetchHistory(); 
       setSymptoms('');
+      setAnamnesis('');
       setFile(null);
     } catch (error) {
       console.error("Erreur analyse", error);
-      alert("Erreur lors de l'analyse. Vérifiez que le Backend et l'IA tournent.");
+      alert("Erreur lors de l'analyse. Vérifiez les logs Backend.");
     } finally {
       setLoading(false);
     }
@@ -87,14 +91,27 @@ const Dashboard = () => {
               </div>
               <div className="card-body">
                 <form onSubmit={handleScan}>
+                  
                   <div className="mb-3">
-                    <label className="form-label text-muted small">Symptômes ressentis</label>
+                    <label className="form-label text-muted small">Symptômes actuels</label>
                     <textarea 
                       className="form-control" 
-                      rows="3" 
-                      placeholder="Vision floue, taches noires..."
+                      rows="2" 
+                      placeholder="Vision floue, taches..."
                       value={symptoms}
                       onChange={(e) => setSymptoms(e.target.value)}
+                      required
+                    ></textarea>
+                  </div>
+
+                  <div className="mb-3">
+                    <label className="form-label text-muted small">Antécédents (Diabète, etc.)</label>
+                    <textarea 
+                      className="form-control" 
+                      rows="2" 
+                      placeholder="Type de diabète, durée..."
+                      value={anamnesis}
+                      onChange={(e) => setAnamnesis(e.target.value)}
                       required
                     ></textarea>
                   </div>
@@ -115,15 +132,15 @@ const Dashboard = () => {
                     disabled={loading || !file}
                   >
                     {loading ? (
-                      <span><span className="spinner-border spinner-border-sm me-2"></span>Analyse en cours...</span>
+                      <span><span className="spinner-border spinner-border-sm me-2"></span>Analyse...</span>
                     ) : 'Lancer l\'analyse IA'}
                   </button>
                 </form>
 
                 {result && (
-                  <div className={`mt-4 alert ${result.diagnosis === 'Œil Sain' ? 'alert-success' : 'alert-danger'} text-center`}>
-                    <h4 className="alert-heading fw-bold">{result.diagnosis}</h4>
-                    <p className="mb-0">Confiance IA : <strong>{result.confidence}%</strong></p>
+                  <div className={`mt-4 alert ${result.aiPrediction === 'Œil Sain' ? 'alert-success' : 'alert-danger'} text-center`}>
+                    <h4 className="alert-heading fw-bold">{result.aiPrediction}</h4>
+                    <p className="mb-0">Confiance IA : <strong>{Math.round(result.aiConfidence * 100)}%</strong></p>
                   </div>
                 )}
               </div>
@@ -133,7 +150,7 @@ const Dashboard = () => {
           <div className="col-md-7">
             <div className="card shadow-sm border-0 h-100">
               <div className="card-header bg-white fw-bold text-secondary">
-                📂 Historique des patients
+                📂 Historique
               </div>
               <div className="card-body p-0">
                 <div className="table-responsive">
@@ -141,31 +158,25 @@ const Dashboard = () => {
                     <thead className="bg-light text-secondary">
                       <tr>
                         <th className="ps-4">Date</th>
-                        <th>Diagnostic</th>
+                        <th>Résultat IA</th>
                         <th>Confiance</th>
-                        <th>Symptômes</th>
                       </tr>
                     </thead>
                     <tbody>
                       {history.length === 0 ? (
-                        <tr>
-                          <td colSpan="4" className="text-center py-4 text-muted">Aucun scan enregistré.</td>
-                        </tr>
+                        <tr><td colSpan="3" className="text-center py-4">Aucun scan.</td></tr>
                       ) : (
                         history.map((scan) => (
                           <tr key={scan.id}>
                             <td className="ps-4 text-muted small">
-                              {new Date(scan.scanDate).toLocaleDateString()}
+                              {scan.createdAt ? new Date(scan.createdAt).toLocaleDateString() : 'N/A'}
                             </td>
                             <td>
-                              <span className={`badge ${scan.diagnosis === 'Œil Sain' ? 'bg-success' : 'bg-danger'}`}>
-                                {scan.diagnosis}
+                              <span className={`badge ${scan.aiPrediction?.includes('Sain') ? 'bg-success' : 'bg-danger'}`}>
+                                {scan.aiPrediction || 'En attente'}
                               </span>
                             </td>
-                            <td className="fw-bold text-dark">{scan.confidence}%</td>
-                            <td className="text-muted small text-truncate" style={{maxWidth: '150px'}}>
-                              {scan.symptoms}
-                            </td>
+                            <td className="fw-bold">{scan.aiConfidence ? Math.round(scan.aiConfidence * 100) : 0}%</td>
                           </tr>
                         ))
                       )}

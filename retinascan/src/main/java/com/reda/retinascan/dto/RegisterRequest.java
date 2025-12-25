@@ -1,5 +1,6 @@
 package com.reda.retinascan.dto;
 
+import com.reda.retinascan.entity.Role;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -13,4 +14,5 @@ public class RegisterRequest {
     private String fullName;
     private String email;
     private String password;
+    private Role role;
 }

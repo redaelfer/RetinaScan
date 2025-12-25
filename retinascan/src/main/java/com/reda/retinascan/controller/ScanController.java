@@ -1,6 +1,8 @@
 package com.reda.retinascan.controller;
 
 import com.reda.retinascan.entity.Scan;
+import com.reda.retinascan.entity.User;
+import com.reda.retinascan.repository.UserRepository;
 import com.reda.retinascan.service.ScanService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -17,18 +19,33 @@ import java.util.List;
 public class ScanController {
 
     private final ScanService scanService;
+    private final UserRepository userRepository;
 
     @PostMapping("/upload")
     public ResponseEntity<Scan> uploadScan(
             @RequestParam("file") MultipartFile file,
             @RequestParam("symptoms") String symptoms,
+            @RequestParam("anamnesis") String anamnesis,
+            @RequestParam("consent") boolean consent,
             Principal principal
     ) throws IOException {
-        return ResponseEntity.ok(scanService.saveScan(principal.getName(), file, symptoms));
+
+        String email = principal.getName();
+
+        User patient = userRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("Patient introuvable"));
+
+        Scan savedScan = scanService.processScan(file, patient, symptoms, anamnesis, consent);
+
+        return ResponseEntity.ok(savedScan);
     }
 
     @GetMapping("/history")
     public ResponseEntity<List<Scan>> getHistory(Principal principal) {
-        return ResponseEntity.ok(scanService.getUserHistory(principal.getName()));
+        String email = principal.getName();
+        User patient = userRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("Patient introuvable"));
+
+        return ResponseEntity.ok(scanService.getPatientHistory(patient));
     }
 }

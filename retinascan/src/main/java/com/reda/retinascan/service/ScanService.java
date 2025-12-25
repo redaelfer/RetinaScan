@@ -1,90 +1,86 @@
 package com.reda.retinascan.service;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.reda.retinascan.entity.Scan;
 import com.reda.retinascan.entity.User;
 import com.reda.retinascan.repository.ScanRepository;
-import com.reda.retinascan.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.ByteArrayResource;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
-import org.springframework.web.multipart.MultipartFile;
-import org.springframework.web.client.RestTemplate;
-import org.springframework.http.*;
-import org.springframework.core.io.FileSystemResource;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
-import java.util.Map;
+import org.springframework.web.client.RestTemplate;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.List;
-import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
 public class ScanService {
 
     private final ScanRepository scanRepository;
-    private final UserRepository userRepository;
-    private final String UPLOAD_DIR = "uploads/";
     private final RestTemplate restTemplate = new RestTemplate();
-    @org.springframework.beans.factory.annotation.Value("${ai.service.url:http://localhost:5000/predict}")
-    private String AI_SERVICE_URL;
 
-    public Scan saveScan(String userEmail, MultipartFile file, String symptoms) throws IOException {
-        User user = userRepository.findByEmail(userEmail)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+    @Value("${AI_SERVICE_URL:http://localhost:5000/predict}")
+    private String aiServiceUrl;
 
-        Path uploadPath = Paths.get(UPLOAD_DIR);
-        if (!Files.exists(uploadPath)) {
-            Files.createDirectories(uploadPath);
-        }
+    public Scan processScan(MultipartFile file, User patient, String symptoms, String anamnesis, boolean consent) throws IOException {
 
-        String fileName = UUID.randomUUID().toString() + "_" + file.getOriginalFilename();
-        Path filePath = uploadPath.resolve(fileName);
-        Files.copy(file.getInputStream(), filePath);
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.MULTIPART_FORM_DATA);
 
-        String aiDiagnosis = "Pending Analysis";
-        Float confidence = 0.0f;
+        MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
+        body.add("file", new ByteArrayResource(file.getBytes()) {
+            @Override
+            public String getFilename() {
+                return file.getOriginalFilename();
+            }
+        });
+
+        HttpEntity<MultiValueMap<String, Object>> requestEntity = new HttpEntity<>(body, headers);
+
+        String prediction = "Non Analysé (Erreur IA)";
+        float confidence = 0.0f;
 
         try {
-            MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
-            body.add("file", new FileSystemResource(filePath.toFile()));
+            System.out.println("Envoi vers IA : " + aiServiceUrl);
 
-            HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.MULTIPART_FORM_DATA);
+            ResponseEntity<String> response = restTemplate.postForEntity(aiServiceUrl, requestEntity, String.class);
 
-            HttpEntity<MultiValueMap<String, Object>> requestEntity = new HttpEntity<>(body, headers);
+            ObjectMapper mapper = new ObjectMapper();
+            JsonNode root = mapper.readTree(response.getBody());
 
-            ResponseEntity<Map> response = restTemplate.postForEntity(AI_SERVICE_URL, requestEntity, Map.class);
-
-            if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
-                Map<String, Object> result = response.getBody();
-                aiDiagnosis = (String) result.get("diagnosis");
-                confidence = ((Number) result.get("confidence")).floatValue();
+            if (root.has("diagnosis")) {
+                prediction = root.path("diagnosis").asText();
+                confidence = (float) root.path("confidence").asDouble();
             }
         } catch (Exception e) {
-            e.printStackTrace();
-            aiDiagnosis = "AI Service Unavailable";
+            System.err.println("ERREUR IA : " + e.getMessage());
         }
 
+        String fakeImageUrl = "/uploads/" + System.currentTimeMillis() + "_" + file.getOriginalFilename();
+
         Scan scan = Scan.builder()
-                .user(user)
-                .imageUrl(filePath.toString())
+                .imageUrl(fakeImageUrl)
+                .aiPrediction(prediction)
+                .aiConfidence(confidence)
                 .symptoms(symptoms)
-                .diagnosis(aiDiagnosis)
-                .confidence(confidence)
+                .anamnesis(anamnesis)
+                .consent(consent)
+                .patient(patient)
                 .build();
 
         return scanRepository.save(scan);
     }
 
-    public List<Scan> getUserHistory(String userEmail) {
-        User user = userRepository.findByEmail(userEmail)
-                .orElseThrow(() -> new RuntimeException("User not found"));
-        return scanRepository.findByUserId(user.getId());
+    public List<Scan> getPatientHistory(User patient) {
+        return scanRepository.findAllByPatientIdOrderByCreatedAtDesc(patient.getId());
     }
-
-
 }

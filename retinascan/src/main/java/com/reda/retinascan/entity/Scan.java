@@ -5,7 +5,6 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-
 import java.time.LocalDateTime;
 
 @Data
@@ -13,32 +12,53 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
-@Table(name = "scans")
+@Table(name = "examinations")
 public class Scan {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false)
     private String imageUrl;
+
+    private String aiPrediction;
+    private Float aiConfidence;
 
     @Column(columnDefinition = "TEXT")
     private String symptoms;
 
-    private String diagnosis;
+    @Column(columnDefinition = "TEXT")
+    private String anamnesis;
 
-    private Float confidence;
+    private boolean consent;
 
-    @Column(name = "scan_date")
-    private LocalDateTime scanDate;
+    @Enumerated(EnumType.STRING)
+    private ScanStatus status;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_id", nullable = false)
-    private User user;
+    @Column(columnDefinition = "TEXT")
+    private String doctorNotes;
+
+    private String diagnosisCorrection;
+
+    @ManyToOne
+    @JoinColumn(name = "patient_id")
+    private User patient;
+
+    @ManyToOne
+    @JoinColumn(name = "doctor_id")
+    private User doctor;
+
+    private LocalDateTime createdAt;
 
     @PrePersist
     protected void onCreate() {
-        this.scanDate = LocalDateTime.now();
+        createdAt = LocalDateTime.now();
+        if (status == null) status = ScanStatus.PENDING;
     }
+}
+
+enum ScanStatus {
+    PENDING,
+    VALIDATED,
+    ARCHIVED
 }

@@ -1,6 +1,7 @@
 package com.reda.retinascan.entity;
 
 public enum Role {
-    USER,
+    PATIENT,
+    DOCTOR,
     ADMIN
 }

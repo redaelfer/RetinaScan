@@ -19,6 +19,7 @@ const Login = () => {
       });
 
       const token = response.data.token;
+      
       localStorage.setItem('token', token);
       localStorage.setItem('userEmail', email);
 
@@ -26,20 +27,23 @@ const Login = () => {
       navigate('/dashboard');
 
     } catch (err) {
-      console.error(err);
-      setError("Identifiants incorrects. Vérifiez votre email et mot de passe.");
+      console.error("Erreur détaillée :", err);
+
+      if (!err.response) {
+        setError("Impossible de contacter le serveur. Vérifiez qu'il est lancé ou problème CORS.");
+      } else if (err.response.status === 403 || err.response.status === 401) {
+        setError("Email ou mot de passe incorrect.");
+      } else {
+        setError(`Erreur serveur : ${err.response.status}`);
+      }
     }
   };
 
   return (
     <div className="d-flex justify-content-center align-items-center vh-100 bg-light">
-      
       <div className="card shadow-lg p-4" style={{ width: '400px' }}>
         <div className="card-body">
-          
-          <h2 className="text-center text-primary mb-4">
-            RetinaScan 👁️
-          </h2>
+          <h2 className="text-center text-primary mb-4">RetinaScan 👁️</h2>
           
           {error && (
             <div className="alert alert-danger" role="alert">
@@ -82,7 +86,6 @@ const Login = () => {
               Pas de compte ? <a href="#" className="text-decoration-none">S'inscrire</a>
             </small>
           </div>
-
         </div>
       </div>
     </div>
