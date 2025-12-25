@@ -29,7 +29,8 @@ public class ScanService {
     private final UserRepository userRepository;
     private final String UPLOAD_DIR = "uploads/";
     private final RestTemplate restTemplate = new RestTemplate();
-    private final String AI_SERVICE_URL = "http://localhost:5000/predict";
+    @org.springframework.beans.factory.annotation.Value("${ai.service.url:http://localhost:5000/predict}")
+    private String AI_SERVICE_URL;
 
     public Scan saveScan(String userEmail, MultipartFile file, String symptoms) throws IOException {
         User user = userRepository.findByEmail(userEmail)

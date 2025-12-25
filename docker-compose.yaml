@@ -1,0 +1,57 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15
+    container_name: retinascan-db
+    environment:
+      POSTGRES_USER: reda
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: retinascan_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - retinascan-network
+
+  ai-service:
+    build: ./retinascan-ai
+    container_name: retinascan-ai
+    ports:
+      - "5000:5000"
+    networks:
+      - retinascan-network
+
+  backend:
+    build: ./retinascan
+    container_name: retinascan-backend
+    ports:
+      - "8080:8080"
+    depends_on:
+      - postgres
+      - ai-service
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/retinascan_db
+      SPRING_DATASOURCE_USERNAME: reda
+      SPRING_DATASOURCE_PASSWORD: password
+      AI_SERVICE_URL: http://ai-service:5000/predict
+    networks:
+      - retinascan-network
+
+  frontend:
+    build: ./frontend
+    container_name: retinascan-frontend
+    ports:
+      - "3000:80"  
+    depends_on:
+      - backend
+    networks:
+      - retinascan-network
+
+volumes:
+  postgres_data:
+
+networks:
+  retinascan-network:
+    driver: bridge
