@@ -9,6 +9,14 @@ import io
 
 app = Flask(__name__)
 
+CLASSES = {
+    0: "Œil Sain (Niveau 0)",
+    1: "Rétinopathie Légère (Niveau 1)",
+    2: "Rétinopathie Modérée (Niveau 2)",
+    3: "Rétinopathie Sévère (Niveau 3)",
+    4: "Rétinopathie Proliférante (Niveau 4)"
+}
+
 class FixedDense(Dense):
     def __init__(self, *args, **kwargs):
         if 'quantization_config' in kwargs:
@@ -53,21 +61,16 @@ def predict():
         image = Image.open(io.BytesIO(file.read()))
         processed_image = prepare_image(image, target_size=(224, 224))
         
-        raw_prediction = model.predict(processed_image)
-        raw_score = float(raw_prediction[0][0]) 
-
-        probability = 1 / (1 + np.exp(-raw_score))
+        predictions = model.predict(processed_image)
         
-        if probability > 0.5:
-            label = "Pathologie Détectée"
-            confidence = probability
-        else:
-            label = "Œil Sain"
-            confidence = 1.0 - probability
-            
+        class_idx = np.argmax(predictions[0])
+        confidence = float(predictions[0][class_idx])
+        
+        label = CLASSES.get(class_idx, "Inconnu")
+
         return jsonify({
             "diagnosis": label,
-            "confidence": round(confidence , 4) 
+            "confidence": round(confidence, 4)
         })
 
     except Exception as e:

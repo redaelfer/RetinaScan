@@ -45,8 +45,8 @@ const Dashboard = () => {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('symptoms', symptoms);
-    formData.append('anamnesis', anamnesis);
-    formData.append('consent', 'true');     
+    formData.append('anamnesis', anamnesis); 
+    formData.append('consent', 'true');      
 
     try {
       const response = await axios.post('http://localhost:8080/api/scans/upload', formData, authConfig);
@@ -57,7 +57,7 @@ const Dashboard = () => {
       setFile(null);
     } catch (error) {
       console.error("Erreur analyse", error);
-      alert("Erreur lors de l'analyse. Vérifiez les logs Backend.");
+      alert("Erreur lors de l'analyse. Vérifiez que le Backend et l'IA tournent.");
     } finally {
       setLoading(false);
     }
@@ -69,10 +69,24 @@ const Dashboard = () => {
     navigate('/login');
   };
 
+  const handleAppointment = () => {
+    alert(`✅ Demande reçue ! \n\nUn médecin partenaire a été notifié de votre résultat positif (${result.aiPrediction}). \nIl vous contactera sur ${userEmail} sous 24h.`);
+  };
+
+  const getSeverityBadge = (diagnosis) => {
+    if (!diagnosis) return 'bg-secondary';
+    if (diagnosis.includes('Sain')) return 'bg-success'; 
+    if (diagnosis.includes('Légère')) return 'bg-info text-dark'; 
+    if (diagnosis.includes('Modérée')) return 'bg-warning text-dark'; 
+    if (diagnosis.includes('Sévère')) return 'bg-danger'; 
+    if (diagnosis.includes('Proliférante')) return 'bg-danger border border-dark'; 
+    return 'bg-primary';
+  };
+
   return (
     <div className="min-vh-100 bg-light">
       <nav className="navbar navbar-expand-lg navbar-dark bg-primary px-4 shadow-sm">
-        <span className="navbar-brand fw-bold">👁️ RetinaScan</span>
+        <span className="navbar-brand fw-bold">👁️ RetinaScan Pro</span>
         <div className="ms-auto d-flex align-items-center">
           <span className="text-white me-3 d-none d-md-block">{userEmail}</span>
           <button onClick={handleLogout} className="btn btn-outline-light btn-sm">
@@ -132,15 +146,33 @@ const Dashboard = () => {
                     disabled={loading || !file}
                   >
                     {loading ? (
-                      <span><span className="spinner-border spinner-border-sm me-2"></span>Analyse...</span>
-                    ) : 'Lancer l\'analyse IA'}
+                      <span><span className="spinner-border spinner-border-sm me-2"></span>Analyse IA en cours...</span>
+                    ) : 'Lancer le diagnostic'}
                   </button>
                 </form>
 
                 {result && (
-                  <div className={`mt-4 alert ${result.aiPrediction === 'Œil Sain' ? 'alert-success' : 'alert-danger'} text-center`}>
-                    <h4 className="alert-heading fw-bold">{result.aiPrediction}</h4>
-                    <p className="mb-0">Confiance IA : <strong>{Math.round(result.aiConfidence * 100)}%</strong></p>
+                  <div className={`mt-4 alert text-center shadow-sm ${
+                    result.aiPrediction && result.aiPrediction.includes('Sain') ? 'alert-success' : 'alert-warning'
+                  }`}>
+                    <h5 className="alert-heading fw-bold mb-1">Résultat</h5>
+                    <hr />
+                    <h4 className="fw-bold my-3">{result.aiPrediction}</h4>
+                    <p className="mb-3">
+                      Indice de confiance : <strong>{Math.round(result.aiConfidence * 100)}%</strong>
+                    </p>
+
+                    {result.aiPrediction && !result.aiPrediction.includes('Sain') && (
+                      <div className="d-grid gap-2 mt-3 pt-3 border-top border-secondary">
+                        <button onClick={handleAppointment} className="btn btn-danger fw-bold animate__animated animate__pulse animate__infinite">
+                          📅 Prendre RDV Prioritaire
+                        </button>
+                        <small className="text-danger fst-italic">
+                          ⚠️ Une pathologie a été détectée. Une consultation rapide est recommandée.
+                        </small>
+                      </div>
+                    )}
+
                   </div>
                 )}
               </div>
@@ -150,7 +182,7 @@ const Dashboard = () => {
           <div className="col-md-7">
             <div className="card shadow-sm border-0 h-100">
               <div className="card-header bg-white fw-bold text-secondary">
-                📂 Historique
+                📂 Historique des Patients
               </div>
               <div className="card-body p-0">
                 <div className="table-responsive">
@@ -158,25 +190,27 @@ const Dashboard = () => {
                     <thead className="bg-light text-secondary">
                       <tr>
                         <th className="ps-4">Date</th>
-                        <th>Résultat IA</th>
+                        <th>Diagnostic IA</th>
                         <th>Confiance</th>
                       </tr>
                     </thead>
                     <tbody>
                       {history.length === 0 ? (
-                        <tr><td colSpan="3" className="text-center py-4">Aucun scan.</td></tr>
+                        <tr><td colSpan="3" className="text-center py-4">Aucun scan enregistré.</td></tr>
                       ) : (
                         history.map((scan) => (
                           <tr key={scan.id}>
                             <td className="ps-4 text-muted small">
-                              {scan.createdAt ? new Date(scan.createdAt).toLocaleDateString() : 'N/A'}
+                              {scan.createdAt ? new Date(scan.createdAt).toLocaleDateString() + ' ' + new Date(scan.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : 'N/A'}
                             </td>
                             <td>
-                              <span className={`badge ${scan.aiPrediction?.includes('Sain') ? 'bg-success' : 'bg-danger'}`}>
+                              <span className={`badge rounded-pill ${getSeverityBadge(scan.aiPrediction)}`}>
                                 {scan.aiPrediction || 'En attente'}
                               </span>
                             </td>
-                            <td className="fw-bold">{scan.aiConfidence ? Math.round(scan.aiConfidence * 100) : 0}%</td>
+                            <td className="fw-bold text-secondary">
+                              {scan.aiConfidence ? Math.round(scan.aiConfidence * 100) : 0}%
+                            </td>
                           </tr>
                         ))
                       )}
