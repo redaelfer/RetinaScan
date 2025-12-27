@@ -48,4 +48,9 @@ public class ScanController {
 
         return ResponseEntity.ok(scanService.getPatientHistory(patient));
     }
+
+    @GetMapping("/doctor-queue")
+    public ResponseEntity<List<Scan>> getDoctorQueue() {
+        return ResponseEntity.ok(scanService.getDoctorQueue());
+    }
 }

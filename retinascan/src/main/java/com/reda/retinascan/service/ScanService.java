@@ -17,8 +17,11 @@ import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.multipart.MultipartFile;
+import java.util.Comparator;
+import java.util.stream.Collectors;
 
 import java.io.IOException;
+import java.util.Base64;
 import java.util.List;
 
 @Service
@@ -65,10 +68,13 @@ public class ScanService {
             System.err.println("ERREUR IA : " + e.getMessage());
         }
 
+        String base64Image = Base64.getEncoder().encodeToString(file.getBytes());
+
         String fakeImageUrl = "/uploads/" + System.currentTimeMillis() + "_" + file.getOriginalFilename();
 
         Scan scan = Scan.builder()
                 .imageUrl(fakeImageUrl)
+                .imageData(base64Image)
                 .aiPrediction(prediction)
                 .aiConfidence(confidence)
                 .symptoms(symptoms)
@@ -82,5 +88,26 @@ public class ScanService {
 
     public List<Scan> getPatientHistory(User patient) {
         return scanRepository.findAllByPatientIdOrderByCreatedAtDesc(patient.getId());
+    }
+
+    public List<Scan> getDoctorQueue() {
+        List<Scan> allScans = scanRepository.findAll();
+
+        return allScans.stream()
+                .sorted(Comparator.comparingInt(this::getSeverityScore))
+                .collect(Collectors.toList());
+    }
+
+    private int getSeverityScore(Scan scan) {
+        String pred = scan.getAiPrediction();
+        if (pred == null) return 10;
+
+        if (pred.contains("Proliférante")) return 1;
+        if (pred.contains("Sévère")) return 2;
+        if (pred.contains("Modérée")) return 3;
+        if (pred.contains("Légère")) return 4;
+        if (pred.contains("Sain")) return 5;
+
+        return 10;
     }
 }

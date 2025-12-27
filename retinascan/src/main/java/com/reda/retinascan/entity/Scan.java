@@ -19,6 +19,9 @@ public class Scan {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(columnDefinition = "TEXT")
+    private String imageData;
+
     private String imageUrl;
 
     private String aiPrediction;
@@ -38,15 +41,9 @@ public class Scan {
     @Column(columnDefinition = "TEXT")
     private String doctorNotes;
 
-    private String diagnosisCorrection;
-
     @ManyToOne
     @JoinColumn(name = "patient_id")
     private User patient;
-
-    @ManyToOne
-    @JoinColumn(name = "doctor_id")
-    private User doctor;
 
     private LocalDateTime createdAt;
 

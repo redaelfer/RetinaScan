@@ -2,6 +2,58 @@ import { useEffect, useState } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 
+const HEALTH_TIPS = {
+  sain: {
+    title: "Tout va bien ! Préservez votre vue.",
+    color: "success",
+    icon: "✅",
+    tips: [
+      "Maintenez une alimentation riche en Oméga-3 (poissons gras, noix).",
+      "Protégez vos yeux des UV avec des lunettes de soleil.",
+      "Continuez votre dépistage annuel de routine."
+    ]
+  },
+  leger: {
+    title: "Vigilance : Stabilisez votre glycémie",
+    color: "info",
+    icon: "💧",
+    tips: [
+      "Objectif HbA1c (Hémoglobine glyquée) : Visez < 7%.",
+      "Contrôlez votre tension artérielle régulièrement (< 140/90 mmHg).",
+      "Pratiquez 30 min d'activité physique douce par jour."
+    ]
+  },
+  modere: {
+    title: "Attention : Suivi médical requis",
+    color: "warning",
+    icon: "⚠️",
+    tips: [
+      "Consultez votre diabétologue pour réajuster votre traitement.",
+      "Le tabac accélère les lésions : essayez de réduire ou d'arrêter.",
+      "Faites un fond d'œil de contrôle tous les 6 mois."
+    ]
+  },
+  severe: {
+    title: "Urgence : Action médicale nécessaire",
+    color: "danger",
+    icon: "🚨",
+    tips: [
+      "Un traitement (Laser ou Injections) peut être nécessaire.",
+      "Ne manquez aucun rendez-vous ophtalmologique.",
+      "Surveillez l'apparition de taches noires ou d'éclairs lumineux."
+    ]
+  },
+  default: {
+    title: "Conseils de Santé Généraux",
+    color: "primary",
+    icon: "🍎",
+    tips: [
+      "Adoptez une hygiène de vie saine.",
+      "Consultez un médecin en cas de doute."
+    ]
+  }
+};
+
 const Dashboard = () => {
   const [file, setFile] = useState(null);
   const [symptoms, setSymptoms] = useState('');
@@ -73,6 +125,15 @@ const Dashboard = () => {
     alert(`✅ Demande reçue ! \n\nUn médecin partenaire a été notifié de votre résultat positif (${result.aiPrediction}). \nIl vous contactera sur ${userEmail} sous 24h.`);
   };
 
+  const getAdvice = (diagnosis) => {
+    if (!diagnosis) return null;
+    if (diagnosis.includes('Sain')) return HEALTH_TIPS.sain;
+    if (diagnosis.includes('Légère')) return HEALTH_TIPS.leger;
+    if (diagnosis.includes('Modérée')) return HEALTH_TIPS.modere;
+    if (diagnosis.includes('Sévère') || diagnosis.includes('Proliférante')) return HEALTH_TIPS.severe;
+    return HEALTH_TIPS.default;
+  };
+
   const getSeverityBadge = (diagnosis) => {
     if (!diagnosis) return 'bg-secondary';
     if (diagnosis.includes('Sain')) return 'bg-success'; 
@@ -82,6 +143,8 @@ const Dashboard = () => {
     if (diagnosis.includes('Proliférante')) return 'bg-danger border border-dark'; 
     return 'bg-primary';
   };
+
+  const currentAdvice = result ? getAdvice(result.aiPrediction) : null;
 
   return (
     <div className="min-vh-100 bg-light">
@@ -152,29 +215,47 @@ const Dashboard = () => {
                 </form>
 
                 {result && (
-                  <div className={`mt-4 alert text-center shadow-sm ${
-                    result.aiPrediction && result.aiPrediction.includes('Sain') ? 'alert-success' : 'alert-warning'
-                  }`}>
-                    <h5 className="alert-heading fw-bold mb-1">Résultat</h5>
-                    <hr />
-                    <h4 className="fw-bold my-3">{result.aiPrediction}</h4>
-                    <p className="mb-3">
-                      Indice de confiance : <strong>{Math.round(result.aiConfidence * 100)}%</strong>
-                    </p>
+                  <div className="animate__animated animate__fadeIn">
+                    {/* Bloc Principal Résultat */}
+                    <div className={`mt-4 alert text-center shadow-sm ${
+                      result.aiPrediction && result.aiPrediction.includes('Sain') ? 'alert-success' : 'alert-warning'
+                    }`}>
+                      <h5 className="alert-heading fw-bold mb-1">Résultat de l'IA</h5>
+                      <hr />
+                      <h4 className="fw-bold my-3">{result.aiPrediction}</h4>
+                      <p className="mb-2">
+                        Indice de confiance : <strong>{Math.round(result.aiConfidence * 100)}%</strong>
+                      </p>
 
-                    {result.aiPrediction && !result.aiPrediction.includes('Sain') && (
-                      <div className="d-grid gap-2 mt-3 pt-3 border-top border-secondary">
-                        <button onClick={handleAppointment} className="btn btn-danger fw-bold animate__animated animate__pulse animate__infinite">
-                          📅 Prendre RDV Prioritaire
-                        </button>
-                        <small className="text-danger fst-italic">
-                          ⚠️ Une pathologie a été détectée. Une consultation rapide est recommandée.
-                        </small>
+                      {result.aiPrediction && !result.aiPrediction.includes('Sain') && (
+                        <div className="d-grid gap-2 mt-3">
+                          <button onClick={handleAppointment} className="btn btn-danger fw-bold shadow-sm">
+                            📅 Prendre RDV Prioritaire
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                    {currentAdvice && (
+                      <div className={`card mt-3 border-${currentAdvice.color} shadow-sm`}>
+                        <div className={`card-header bg-${currentAdvice.color} text-white fw-bold`}>
+                          {currentAdvice.icon} Conseils Personnalisés
+                        </div>
+                        <div className="card-body bg-light">
+                          <h6 className={`card-title fw-bold text-${currentAdvice.color}`}>
+                            {currentAdvice.title}
+                          </h6>
+                          <ul className="mb-0 mt-2 small text-muted ps-3">
+                            {currentAdvice.tips.map((tip, index) => (
+                              <li key={index} className="mb-1">{tip}</li>
+                            ))}
+                          </ul>
+                        </div>
                       </div>
                     )}
-
                   </div>
                 )}
+
               </div>
             </div>
           </div>
