@@ -62,15 +62,25 @@ def predict():
         processed_image = prepare_image(image, target_size=(224, 224))
         
         predictions = model.predict(processed_image)
+        probs = predictions[0] 
         
-        class_idx = np.argmax(predictions[0])
-        confidence = float(predictions[0][class_idx])
+        class_idx = np.argmax(probs)
+        confidence = float(probs[class_idx])
         
         label = CLASSES.get(class_idx, "Inconnu")
 
+        details = {
+            "sain": float(probs[0]),
+            "leger": float(probs[1]),
+            "modere": float(probs[2]),
+            "severe": float(probs[3]),
+            "proliferant": float(probs[4])
+        }
+
         return jsonify({
             "diagnosis": label,
-            "confidence": round(confidence, 4)
+            "confidence": round(confidence, 4),
+            "details": details 
         })
 
     except Exception as e:

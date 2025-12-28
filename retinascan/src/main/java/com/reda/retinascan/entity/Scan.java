@@ -52,10 +52,7 @@ public class Scan {
         createdAt = LocalDateTime.now();
         if (status == null) status = ScanStatus.PENDING;
     }
-}
 
-enum ScanStatus {
-    PENDING,
-    VALIDATED,
-    ARCHIVED
+    @Column(columnDefinition = "TEXT")
+    private String aiDetails;
 }

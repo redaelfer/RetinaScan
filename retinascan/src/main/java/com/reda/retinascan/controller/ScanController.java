@@ -53,4 +53,21 @@ public class ScanController {
     public ResponseEntity<List<Scan>> getDoctorQueue() {
         return ResponseEntity.ok(scanService.getDoctorQueue());
     }
+
+    @GetMapping("/patient/{patientId}/history")
+    public ResponseEntity<List<Scan>> getPatientHistoryForDoctor(@PathVariable Long patientId) {
+        User patient = userRepository.findById(patientId)
+                .orElseThrow(() -> new RuntimeException("Patient introuvable"));
+
+        return ResponseEntity.ok(scanService.getPatientHistory(patient));
+    }
+
+    @PutMapping("/{id}/validate")
+    public ResponseEntity<Scan> validateScan(
+            @PathVariable Long id,
+            @RequestBody java.util.Map<String, String> payload
+    ) {
+        String notes = payload.get("notes");
+        return ResponseEntity.ok(scanService.validateScan(id, notes));
+    }
 }
