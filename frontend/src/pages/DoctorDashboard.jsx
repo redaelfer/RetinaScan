@@ -1,10 +1,12 @@
 import { useEffect, useState, useRef } from 'react';
 import axios from 'axios';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 
 const DoctorDashboard = () => {
   const [queue, setQueue] = useState([]);
   const [selectedScan, setSelectedScan] = useState(null);
+  const [searchParams] = useSearchParams();
+  const patientIdFilter = searchParams.get('patientId'); 
   
   const [history, setHistory] = useState([]);
   const [comparisonScan, setComparisonScan] = useState(null); 
@@ -35,14 +37,21 @@ const DoctorDashboard = () => {
   useEffect(() => {
     if (!token) { navigate('/login'); return; }
     fetchQueue();
-  }, [navigate, token]);
+  }, [navigate, token, patientIdFilter]); 
 
   const fetchQueue = async () => {
     try {
-      const response = await axios.get('http://localhost:8080/api/scans/doctor-queue', {
+      let url = 'http://localhost:8080/api/scans/doctor-queue';
+      
+      if (patientIdFilter) {
+          url = `http://localhost:8080/api/scans/patient/${patientIdFilter}/history`;
+      }
+
+      const response = await axios.get(url, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setQueue(response.data);
+      
       if (response.data.length > 0) handleSelect(response.data[0]);
       else setSelectedScan(null); 
     } catch (error) {
@@ -254,7 +263,15 @@ const DoctorDashboard = () => {
       <header className="navbar navbar-dark bg-secondary px-3 shadow-sm" style={{ height: '60px' }}>
         <span className="navbar-brand mb-0 h1">👨‍⚕️ RetinaScan <span className="text-info fw-bold">PRO</span></span>
         <div className="d-flex align-items-center">
-            <span className="badge bg-danger me-3">File Active : {queue.length} Cas</span>
+            {patientIdFilter ? (
+                <button onClick={() => navigate('/doctor-dashboard')} className="btn btn-sm btn-outline-warning me-3">⬅️ Retour File Active</button>
+            ) : (
+                <button onClick={() => navigate('/doctor-stats')} className="btn btn-sm btn-outline-info me-3">📊 Statistiques</button>
+            )}
+            
+            <span className={`badge ${patientIdFilter ? 'bg-primary' : 'bg-danger'} me-3`}>
+                {patientIdFilter ? `Mode Patient : ${queue.length} Dossiers` : `File Active : ${queue.length} Cas`}
+            </span>
             <button onClick={() => {localStorage.clear(); navigate('/login')}} className="btn btn-sm btn-outline-light">Déconnexion</button>
         </div>
       </header>
@@ -262,7 +279,9 @@ const DoctorDashboard = () => {
       <div className="d-flex flex-grow-1 overflow-hidden">
         
         <div className="d-flex flex-column border-end border-secondary" style={{ width: '350px', minWidth: '350px', backgroundColor: '#2b2b2b' }}>
-          <div className="p-2 border-bottom border-secondary bg-dark text-center fw-bold text-uppercase small text-white">Priorité Urgence</div>
+          <div className="p-2 border-bottom border-secondary bg-dark text-center fw-bold text-uppercase small text-white">
+            {patientIdFilter ? "Historique Patient" : "Priorité Urgence"}
+          </div>
           <div className="overflow-auto custom-scrollbar flex-grow-1">
             {queue.map(scan => (
               <div 
@@ -278,7 +297,7 @@ const DoctorDashboard = () => {
                 <div className="fw-bold text-white mb-1">{scan.patient?.firstname} {scan.patient?.lastname}</div>
               </div>
             ))}
-            {queue.length === 0 && <div className="text-center text-muted mt-5">Aucun patient en attente.</div>}
+            {queue.length === 0 && <div className="text-center text-muted mt-5">Aucun dossier trouvé.</div>}
           </div>
           <div className="p-2 border-top border-secondary bg-black">{renderProbabilities()}</div>
         </div>

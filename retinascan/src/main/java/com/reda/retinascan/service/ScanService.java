@@ -126,4 +126,70 @@ public class ScanService {
         if (pred.contains("Sain")) return 5;
         return 10;
     }
+
+    public com.reda.retinascan.dto.StatsResponse getGlobalStats() {
+        List<Scan> allScans = scanRepository.findAll();
+
+        java.util.Map<String, Long> severityDist = allScans.stream()
+                .map(s -> s.getAiPrediction() != null ? s.getAiPrediction() : "Non Analysé")
+                .collect(Collectors.groupingBy(java.util.function.Function.identity(), Collectors.counting()));
+
+        java.util.Map<String, Long> symptomDist = new java.util.HashMap<>();
+        allScans.forEach(scan -> {
+            if (scan.getSymptoms() != null) {
+                String txt = scan.getSymptoms().toLowerCase();
+                if (txt.contains("flou")) symptomDist.merge("Vision Floue", 1L, Long::sum);
+                else if (txt.contains("tache")) symptomDist.merge("Taches", 1L, Long::sum);
+                else if (txt.contains("douleur")) symptomDist.merge("Douleur", 1L, Long::sum);
+                else if (txt.contains("diabete")) symptomDist.merge("Diabète", 1L, Long::sum);
+                else if (txt.contains("noir")) symptomDist.merge("Points Noirs", 1L, Long::sum);
+                else symptomDist.merge("Autres", 1L, Long::sum);
+            }
+        });
+
+        List<User> uniquePatients = allScans.stream()
+                .map(Scan::getPatient)
+                .filter(java.util.Objects::nonNull)
+                .distinct()
+                .collect(Collectors.toList());
+
+        long urgentCount = allScans.stream()
+                .filter(s -> s.getAiPrediction() != null &&
+                        (s.getAiPrediction().contains("Sévère") || s.getAiPrediction().contains("Proliférante")))
+                .count();
+
+        long pendingCount = allScans.stream()
+                .filter(s -> s.getStatus() == com.reda.retinascan.entity.ScanStatus.PENDING)
+                .count();
+
+        double avgConf = allScans.stream()
+                .filter(s -> s.getAiConfidence() != null)
+                .mapToDouble(Scan::getAiConfidence)
+                .average().orElse(0.0);
+
+        java.time.LocalDate today = java.time.LocalDate.now();
+        java.util.Map<String, Long> last7Days = new java.util.LinkedHashMap<>();
+
+        for (int i = 6; i >= 0; i--) {
+            last7Days.put(today.minusDays(i).toString(), 0L);
+        }
+
+        for (Scan s : allScans) {
+            String dateKey = s.getCreatedAt().toLocalDate().toString();
+            if (last7Days.containsKey(dateKey)) {
+                last7Days.put(dateKey, last7Days.get(dateKey) + 1);
+            }
+        }
+
+        return com.reda.retinascan.dto.StatsResponse.builder()
+                .severityDistribution(severityDist)
+                .symptomsFrequency(symptomDist)
+                .patients(uniquePatients)
+                .totalScans(allScans.size())
+                .urgentCases(urgentCount)
+                .pendingCases(pendingCount)
+                .avgConfidence(Math.round(avgConf * 100.0) / 100.0)
+                .scansLast7Days(last7Days)
+                .build();
+    }
 }

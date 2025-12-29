@@ -70,4 +70,9 @@ public class ScanController {
         String notes = payload.get("notes");
         return ResponseEntity.ok(scanService.validateScan(id, notes));
     }
+
+    @GetMapping("/stats")
+    public ResponseEntity<com.reda.retinascan.dto.StatsResponse> getStats() {
+        return ResponseEntity.ok(scanService.getGlobalStats());
+    }
 }
