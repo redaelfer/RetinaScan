@@ -86,6 +86,22 @@ const DoctorDashboard = () => {
     }
   };
 
+  const handleAskAI = async () => {
+    if (!selectedScan) return;
+    
+    setDoctorNotes("🔄 Analyse en cours par l'assistant IA...");
+    setShowValidationModal(true);
+
+    try {
+        const res = await axios.post(`http://localhost:8080/api/scans/${selectedScan.id}/generate-report`, {}, {
+            headers: { Authorization: `Bearer ${token}` }
+        });
+        setDoctorNotes(res.data);
+    } catch (e) {
+        setDoctorNotes("Erreur lors de la génération du rapport IA.");
+    }
+  };
+
   const handleValidate = async () => {
     if (!selectedScan) return;
     setIsSubmitting(true);
@@ -235,13 +251,23 @@ const DoctorDashboard = () => {
                 </div>
 
                 <div className="mb-3">
-                    <label className="form-label text-info small text-uppercase">Notes du Médecin / Conclusion</label>
+                    <div className="d-flex justify-content-between align-items-center mb-2">
+                        <label className="form-label text-info small text-uppercase mb-0">Notes du Médecin / Conclusion</label>
+                        <button 
+                            onClick={handleAskAI}
+                            className="btn btn-sm btn-outline-warning text-white"
+                            style={{fontSize: '0.7rem'}}
+                        >
+                            🔄 Régénérer l'avis IA
+                        </button>
+                    </div>
                     <textarea 
-                        className="form-control bg-black text-white border-secondary" 
-                        rows="4" 
-                        placeholder="Ex: Confirmation de la rétinopathie. Préconisation de suivi..."
+                        className="form-control bg-black text-white border-secondary font-monospace" 
+                        rows="8" 
+                        placeholder="Ex: Confirmation de la rétinopathie..."
                         value={doctorNotes}
                         onChange={(e) => setDoctorNotes(e.target.value)}
+                        style={{fontSize: '0.85rem'}}
                     ></textarea>
                 </div>
 
@@ -400,7 +426,14 @@ const DoctorDashboard = () => {
                         <h6 className="text-info text-uppercase small">Symptômes</h6>
                         <p className="small mb-0 text-white">{selectedScan.symptoms || "Non renseigné"}</p>
                     </div>
+                    
                     <div className="col-md-4 text-end">
+                        <button 
+                            onClick={handleAskAI}
+                            className="btn btn-outline-warning fw-bold px-3 me-2"
+                        >
+                            🤖 Avis IA
+                        </button>
                         <button 
                             onClick={() => setShowValidationModal(true)} 
                             className="btn btn-success fw-bold px-4"

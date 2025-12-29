@@ -2,6 +2,8 @@ package com.reda.retinascan.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.reda.retinascan.dto.AnalysisRequest;
+import com.reda.retinascan.dto.StatsResponse;
 import com.reda.retinascan.entity.Scan;
 import com.reda.retinascan.entity.ScanStatus;
 import com.reda.retinascan.entity.User;
@@ -18,12 +20,12 @@ import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.multipart.MultipartFile;
-import java.util.Comparator;
-import java.util.stream.Collectors;
 
 import java.io.IOException;
-import java.util.Base64;
-import java.util.List;
+import java.time.LocalDate;
+import java.util.*;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -56,8 +58,9 @@ public class ScanService {
 
         try {
             System.out.println("Envoi vers IA : " + aiServiceUrl);
-
+            // Récupération en String pour éviter les erreurs de Type
             ResponseEntity<String> response = restTemplate.postForEntity(aiServiceUrl, requestEntity, String.class);
+
             ObjectMapper mapper = new ObjectMapper();
             JsonNode root = mapper.readTree(response.getBody());
 
@@ -99,7 +102,6 @@ public class ScanService {
         scan.setDoctorNotes(notes);
 
         System.out.println(">>> NOTIFICATION ENVOYÉE AU PATIENT : " + scan.getPatient().getEmail());
-        System.out.println(">>> RAPPORT GÉNÉRÉ : Diagnostic validé par le médecin.");
 
         return scanRepository.save(scan);
     }
@@ -116,6 +118,114 @@ public class ScanService {
                 .collect(Collectors.toList());
     }
 
+    public StatsResponse getGlobalStats() {
+        List<Scan> allScans = scanRepository.findAll();
+
+        Map<String, Long> severityDist = allScans.stream()
+                .map(s -> s.getAiPrediction() != null ? s.getAiPrediction() : "Non Analysé")
+                .collect(Collectors.groupingBy(Function.identity(), Collectors.counting()));
+
+        Map<String, Long> symptomDist = new HashMap<>();
+        allScans.forEach(scan -> {
+            if (scan.getSymptoms() != null) {
+                String txt = scan.getSymptoms().toLowerCase();
+                if (txt.contains("flou")) symptomDist.merge("Vision Floue", 1L, Long::sum);
+                else if (txt.contains("tache")) symptomDist.merge("Taches", 1L, Long::sum);
+                else if (txt.contains("douleur")) symptomDist.merge("Douleur", 1L, Long::sum);
+                else if (txt.contains("diabete")) symptomDist.merge("Diabète", 1L, Long::sum);
+                else symptomDist.merge("Autres", 1L, Long::sum);
+            }
+        });
+
+        List<User> uniquePatients = allScans.stream()
+                .map(Scan::getPatient)
+                .filter(Objects::nonNull)
+                .distinct()
+                .collect(Collectors.toList());
+
+        long urgentCount = allScans.stream()
+                .filter(s -> s.getAiPrediction() != null &&
+                        (s.getAiPrediction().contains("Sévère") || s.getAiPrediction().contains("Proliférante")))
+                .count();
+
+        long pendingCount = allScans.stream()
+                .filter(s -> s.getStatus() == ScanStatus.PENDING)
+                .count();
+
+        double avgConf = allScans.stream()
+                .filter(s -> s.getAiConfidence() != null)
+                .mapToDouble(Scan::getAiConfidence)
+                .average().orElse(0.0);
+
+        LocalDate today = LocalDate.now();
+        Map<String, Long> last7Days = new LinkedHashMap<>();
+        for (int i = 6; i >= 0; i--) {
+            last7Days.put(today.minusDays(i).toString(), 0L);
+        }
+        for (Scan s : allScans) {
+            String dateKey = s.getCreatedAt().toLocalDate().toString();
+            if (last7Days.containsKey(dateKey)) {
+                last7Days.put(dateKey, last7Days.get(dateKey) + 1);
+            }
+        }
+
+        return StatsResponse.builder()
+                .severityDistribution(severityDist)
+                .symptomsFrequency(symptomDist)
+                .patients(uniquePatients)
+                .totalScans(allScans.size())
+                .urgentCases(urgentCount)
+                .pendingCases(pendingCount)
+                .avgConfidence(Math.round(avgConf * 100.0) / 100.0)
+                .scansLast7Days(last7Days)
+                .build();
+    }
+
+    public String generateAiReport(Long scanId) {
+        Scan currentScan = scanRepository.findById(scanId)
+                .orElseThrow(() -> new RuntimeException("Scan non trouvé"));
+
+        List<Scan> history = scanRepository.findAllByPatientIdOrderByCreatedAtDesc(currentScan.getPatient().getId());
+
+        List<AnalysisRequest.ScanInfo> historyDtos = history.stream()
+                .map(s -> AnalysisRequest.ScanInfo.builder()
+                        .date(s.getCreatedAt().toString())
+                        .severity_level(getSeverityScoreForAi(s.getAiPrediction()))
+                        .prediction(s.getAiPrediction())
+                        .confidence(s.getAiConfidence() != null ? s.getAiConfidence() : 0.0)
+                        .build())
+                .collect(Collectors.toList());
+
+        AnalysisRequest.ScanInfo currentDto = AnalysisRequest.ScanInfo.builder()
+                .severity_level(getSeverityScoreForAi(currentScan.getAiPrediction()))
+                .prediction(currentScan.getAiPrediction())
+                .confidence(currentScan.getAiConfidence())
+                .symptoms(currentScan.getSymptoms())
+                .build();
+
+        AnalysisRequest request = AnalysisRequest.builder()
+                .patientName(currentScan.getPatient().getFullName())
+                .current(currentDto)
+                .history(historyDtos)
+                .build();
+
+        try {
+            String url = aiServiceUrl.replace("/predict", "/analyze-case");
+
+            ResponseEntity<String> response = restTemplate.postForEntity(url, request, String.class);
+
+            ObjectMapper mapper = new ObjectMapper();
+            JsonNode root = mapper.readTree(response.getBody());
+
+            if (root.has("report")) {
+                return root.get("report").asText();
+            }
+        } catch (Exception e) {
+            return "Erreur lors de la génération du rapport IA : " + e.getMessage();
+        }
+        return "Aucune analyse générée.";
+    }
+
     private int getSeverityScore(Scan scan) {
         String pred = scan.getAiPrediction();
         if (pred == null) return 10;
@@ -127,69 +237,13 @@ public class ScanService {
         return 10;
     }
 
-    public com.reda.retinascan.dto.StatsResponse getGlobalStats() {
-        List<Scan> allScans = scanRepository.findAll();
-
-        java.util.Map<String, Long> severityDist = allScans.stream()
-                .map(s -> s.getAiPrediction() != null ? s.getAiPrediction() : "Non Analysé")
-                .collect(Collectors.groupingBy(java.util.function.Function.identity(), Collectors.counting()));
-
-        java.util.Map<String, Long> symptomDist = new java.util.HashMap<>();
-        allScans.forEach(scan -> {
-            if (scan.getSymptoms() != null) {
-                String txt = scan.getSymptoms().toLowerCase();
-                if (txt.contains("flou")) symptomDist.merge("Vision Floue", 1L, Long::sum);
-                else if (txt.contains("tache")) symptomDist.merge("Taches", 1L, Long::sum);
-                else if (txt.contains("douleur")) symptomDist.merge("Douleur", 1L, Long::sum);
-                else if (txt.contains("diabete")) symptomDist.merge("Diabète", 1L, Long::sum);
-                else if (txt.contains("noir")) symptomDist.merge("Points Noirs", 1L, Long::sum);
-                else symptomDist.merge("Autres", 1L, Long::sum);
-            }
-        });
-
-        List<User> uniquePatients = allScans.stream()
-                .map(Scan::getPatient)
-                .filter(java.util.Objects::nonNull)
-                .distinct()
-                .collect(Collectors.toList());
-
-        long urgentCount = allScans.stream()
-                .filter(s -> s.getAiPrediction() != null &&
-                        (s.getAiPrediction().contains("Sévère") || s.getAiPrediction().contains("Proliférante")))
-                .count();
-
-        long pendingCount = allScans.stream()
-                .filter(s -> s.getStatus() == com.reda.retinascan.entity.ScanStatus.PENDING)
-                .count();
-
-        double avgConf = allScans.stream()
-                .filter(s -> s.getAiConfidence() != null)
-                .mapToDouble(Scan::getAiConfidence)
-                .average().orElse(0.0);
-
-        java.time.LocalDate today = java.time.LocalDate.now();
-        java.util.Map<String, Long> last7Days = new java.util.LinkedHashMap<>();
-
-        for (int i = 6; i >= 0; i--) {
-            last7Days.put(today.minusDays(i).toString(), 0L);
-        }
-
-        for (Scan s : allScans) {
-            String dateKey = s.getCreatedAt().toLocalDate().toString();
-            if (last7Days.containsKey(dateKey)) {
-                last7Days.put(dateKey, last7Days.get(dateKey) + 1);
-            }
-        }
-
-        return com.reda.retinascan.dto.StatsResponse.builder()
-                .severityDistribution(severityDist)
-                .symptomsFrequency(symptomDist)
-                .patients(uniquePatients)
-                .totalScans(allScans.size())
-                .urgentCases(urgentCount)
-                .pendingCases(pendingCount)
-                .avgConfidence(Math.round(avgConf * 100.0) / 100.0)
-                .scansLast7Days(last7Days)
-                .build();
+    private int getSeverityScoreForAi(String pred) {
+        if (pred == null) return 0;
+        if (pred.contains("Sain")) return 0;
+        if (pred.contains("Légère")) return 1;
+        if (pred.contains("Modérée")) return 2;
+        if (pred.contains("Sévère")) return 3;
+        if (pred.contains("Proliférante")) return 4;
+        return 0;
     }
 }

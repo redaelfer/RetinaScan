@@ -75,4 +75,9 @@ public class ScanController {
     public ResponseEntity<com.reda.retinascan.dto.StatsResponse> getStats() {
         return ResponseEntity.ok(scanService.getGlobalStats());
     }
+
+    @PostMapping("/{id}/generate-report")
+    public ResponseEntity<String> generateReport(@PathVariable Long id) {
+        return ResponseEntity.ok(scanService.generateAiReport(id));
+    }
 }
