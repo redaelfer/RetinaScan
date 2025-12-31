@@ -20,28 +20,29 @@ const Dashboard = () => {
 
   const authConfig = { headers: { Authorization: `Bearer ${token}` } };
 
+  // --- BASE DE DONNÉES DE CONSEILS (ADVICE DB) ---
   const ADVICE_DB = {
-    0: [ 
+    0: [ // Sain
         "✅ Hygiène : Continuez à maintenir un équilibre glycémique stable.",
         "🥦 Alimentation : Privilégiez les légumes verts et les oméga-3.",
         "📅 Suivi : Prochain fond d'œil de contrôle recommandé dans 12 mois."
     ],
-    1: [ 
+    1: [ // Légère
         "⚠️ Tension : Contrôlez strictement votre tension artérielle.",
         "🩸 Diabète : Surveillez votre taux d'hémoglobine glyquée (HbA1c).",
         "📅 Suivi : Consultez votre ophtalmologue dans les 6 à 12 mois."
     ],
-    2: [ 
+    2: [ // Modérée
         "🚨 Alerte : Une prise en charge médicale est nécessaire.",
         "💊 Traitement : Vérifiez votre traitement diabétique avec votre médecin traitant.",
         "📅 Suivi : Consultation ophtalmologique recommandée sous 3 mois."
     ],
-    3: [ 
+    3: [ // Sévère
         "🚑 Urgence : Risque élevé pour la vision. Ne négligez pas vos symptômes.",
         "👁️ Intervention : Un traitement laser (panphotocoagulation) peut être discuté.",
         "📅 Suivi : Prenez rendez-vous sans tarder (sous 1 mois)."
     ],
-    4: [ 
+    4: [ // Proliférante
         "🆘 URGENCE ABSOLUE : Risque de cécité ou d'hémorragie.",
         "💉 Traitement : Des injections intravitréennes ou du laser sont requis immédiatement.",
         "🛑 Précautions : Évitez les efforts physiques violents et le port de charges lourdes."
@@ -454,7 +455,8 @@ const Dashboard = () => {
                                               />
                                           </div>
                                           
-                                          <div className="flex-grow-1">
+                                          {/* CORRECTION 1 : minWidth: 0 pour empêcher l'étirement Flexbox */}
+                                          <div className="flex-grow-1" style={{ minWidth: 0 }}>
                                               <div className="d-flex justify-content-between align-items-start">
                                                   <span className={`badge rounded-pill ${
                                                       scan.aiPrediction.includes('Sain') ? 'bg-success' : 
@@ -472,7 +474,22 @@ const Dashboard = () => {
                                               {scan.status === 'VALIDATED' && (
                                                   <div className="alert alert-success p-2 mt-2 mb-2 small">
                                                       <div className="fw-bold">👨‍⚕️ Validé par le médecin</div>
-                                                      <div className="fst-italic text-truncate">"{scan.doctorNotes || 'Aucune note'}"</div>
+                                                      
+                                                      {/* CORRECTION 2 : Style pour couper après 2 lignes proprement */}
+                                                      <div 
+                                                          className="fst-italic" 
+                                                          title={scan.doctorNotes} 
+                                                          style={{
+                                                              display: '-webkit-box',
+                                                              WebkitLineClamp: 2,
+                                                              WebkitBoxOrient: 'vertical',
+                                                              overflow: 'hidden',
+                                                              textOverflow: 'ellipsis',
+                                                              whiteSpace: 'normal'
+                                                          }}
+                                                      >
+                                                          "{scan.doctorNotes || 'Aucune note'}"
+                                                      </div>
                                                   </div>
                                               )}
 

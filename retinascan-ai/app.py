@@ -113,18 +113,18 @@ def analyze_case():
     
     trend = calculate_trend(history)
     
-    severity_level = current_scan.get('severity_level', 0) # 0 à 4
+    severity_level = current_scan.get('severity_level', 0)
     risk_factor = "FAIBLE"
     if severity_level >= 3: risk_factor = "CRITIQUE"
     elif severity_level == 2: risk_factor = "MODÉRÉ"
     
     
-    report = f"--- ANALYSE AUTOMATISÉE IA ---\n"
+    report = f"--- ANALYSE AUTOMATISÉE ---\n"
     report += f"Patient : {patient_name}\n"
     report += f"Date : {datetime.now().strftime('%d/%m/%Y')}\n\n"
     
     report += f"1. ÉTAT ACTUEL :\n"
-    report += f"- Diagnostic IA : {current_scan['prediction']} (Confiance: {int(current_scan['confidence']*100)}%)\n"
+    report += f"- Diagnostic : {current_scan['prediction']} (Confiance: {int(current_scan['confidence']*100)}%)\n"
     report += f"- Symptômes rapportés : {current_scan['symptoms']}\n\n"
     
     report += f"2. DYNAMIQUE ÉVOLUTIVE :\n"

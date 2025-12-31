@@ -12,6 +12,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
 import java.security.Principal;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/scans")
@@ -63,12 +64,8 @@ public class ScanController {
     }
 
     @PutMapping("/{id}/validate")
-    public ResponseEntity<Scan> validateScan(
-            @PathVariable Long id,
-            @RequestBody java.util.Map<String, String> payload
-    ) {
-        String notes = payload.get("notes");
-        return ResponseEntity.ok(scanService.validateScan(id, notes));
+    public ResponseEntity<Scan> validateScan(@PathVariable Long id, @RequestBody Map<String, String> payload) {
+        return ResponseEntity.ok(scanService.validateScan(id, payload.get("notes"), payload.get("diagnosis")));
     }
 
     @GetMapping("/stats")

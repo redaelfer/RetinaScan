@@ -94,14 +94,18 @@ public class ScanService {
         return scanRepository.save(scan);
     }
 
-    public Scan validateScan(Long scanId, String notes) {
+    public Scan validateScan(Long scanId, String notes, String newDiagnosis) {
         Scan scan = scanRepository.findById(scanId)
                 .orElseThrow(() -> new RuntimeException("Scan non trouvé"));
 
         scan.setStatus(ScanStatus.VALIDATED);
         scan.setDoctorNotes(notes);
 
-        System.out.println(">>> NOTIFICATION ENVOYÉE AU PATIENT : " + scan.getPatient().getEmail());
+        if (newDiagnosis != null && !newDiagnosis.isEmpty()) {
+            scan.setAiPrediction(newDiagnosis);
+        }
+
+        System.out.println(">>> VALIDATION : Patient notifié. Nouveau diagnostic : " + newDiagnosis);
 
         return scanRepository.save(scan);
     }

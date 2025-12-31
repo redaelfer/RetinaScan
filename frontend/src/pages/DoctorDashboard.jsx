@@ -25,6 +25,8 @@ const DoctorDashboard = () => {
   
   const [showValidationModal, setShowValidationModal] = useState(false);
   const [doctorNotes, setDoctorNotes] = useState('');
+  const [aiReport, setAiReport] = useState(null); 
+  const [finalDiagnosis, setFinalDiagnosis] = useState(''); 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [isDragging, setIsDragging] = useState(false);
@@ -42,16 +44,13 @@ const DoctorDashboard = () => {
   const fetchQueue = async () => {
     try {
       let url = 'http://localhost:8080/api/scans/doctor-queue';
-      
       if (patientIdFilter) {
           url = `http://localhost:8080/api/scans/patient/${patientIdFilter}/history`;
       }
-
       const response = await axios.get(url, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setQueue(response.data);
-      
       if (response.data.length > 0) handleSelect(response.data[0]);
       else setSelectedScan(null); 
     } catch (error) {
@@ -64,6 +63,11 @@ const DoctorDashboard = () => {
     setZoom(1); setBrightness(100); setContrast(100); setPosition({ x: 0, y: 0 }); setActiveFilter('none');
     setIsComparing(false); 
     setAnnotationTool('none');
+    setAiReport(null); 
+    setDoctorNotes('');
+    
+    setFinalDiagnosis(scan.aiPrediction || 'Œil Sain (Niveau 0)');
+    
     clearCanvas();
 
     if (scan.patient && scan.patient.id) {
@@ -88,17 +92,15 @@ const DoctorDashboard = () => {
 
   const handleAskAI = async () => {
     if (!selectedScan) return;
-    
-    setDoctorNotes("🔄 Analyse en cours par l'assistant IA...");
-    setShowValidationModal(true);
-
+    setAiReport("🔄 Analyse en cours par l'assistant IA...");
+    setShowValidationModal(true); 
     try {
         const res = await axios.post(`http://localhost:8080/api/scans/${selectedScan.id}/generate-report`, {}, {
             headers: { Authorization: `Bearer ${token}` }
         });
-        setDoctorNotes(res.data);
+        setAiReport(res.data);
     } catch (e) {
-        setDoctorNotes("Erreur lors de la génération du rapport IA.");
+        setAiReport("Erreur lors de la génération du rapport IA.");
     }
   };
 
@@ -107,15 +109,18 @@ const DoctorDashboard = () => {
     setIsSubmitting(true);
     try {
         await axios.put(`http://localhost:8080/api/scans/${selectedScan.id}/validate`, 
-            { notes: doctorNotes },
+            { 
+                notes: doctorNotes,
+                diagnosis: finalDiagnosis 
+            },
             { headers: { Authorization: `Bearer ${token}` } }
         );
         
-        alert(`✅ Rapport validé avec succès !\nLe patient ${selectedScan.patient.lastname} a été notifié.`);
+        alert(`✅ Rapport validé !\nDiagnostic final : ${finalDiagnosis}`);
         
         setShowValidationModal(false);
         setDoctorNotes('');
-        
+        setAiReport(null);
         fetchQueue();
     } catch (error) {
         console.error("Erreur validation", error);
@@ -242,43 +247,75 @@ const DoctorDashboard = () => {
 
       {showValidationModal && (
         <div className="position-fixed top-0 start-0 w-100 h-100 d-flex justify-content-center align-items-center" style={{ backgroundColor: 'rgba(0,0,0,0.8)', zIndex: 1050 }}>
-            <div className="bg-dark border border-secondary rounded shadow-lg p-4 text-white" style={{ maxWidth: '500px', width: '90%' }}>
+            <div className="bg-dark border border-secondary rounded shadow-lg p-4 text-white d-flex flex-column" style={{ maxWidth: '800px', width: '90%', maxHeight: '90vh' }}>
                 <h4 className="fw-bold mb-3 border-bottom border-secondary pb-2">✅ Validation Officielle</h4>
                 
-                <div className="mb-3">
-                    <label className="form-label text-info small text-uppercase">Diagnostic Retenu</label>
-                    <div className="form-control bg-secondary text-white border-0 fw-bold">{selectedScan?.aiPrediction}</div>
-                </div>
-
-                <div className="mb-3">
-                    <div className="d-flex justify-content-between align-items-center mb-2">
-                        <label className="form-label text-info small text-uppercase mb-0">Notes du Médecin / Conclusion</label>
-                        <button 
-                            onClick={handleAskAI}
-                            className="btn btn-sm btn-outline-warning text-white"
-                            style={{fontSize: '0.7rem'}}
+                <div className="overflow-auto custom-scrollbar pe-2">
+                    
+                    <div className="mb-3">
+                        <label className="form-label text-info small text-uppercase">Diagnostic Retenu (Modifiable)</label>
+                        <select 
+                            className="form-select bg-black text-white border-secondary fw-bold"
+                            value={finalDiagnosis}
+                            onChange={(e) => setFinalDiagnosis(e.target.value)}
                         >
-                            🔄 Régénérer l'avis IA
-                        </button>
+                            <option value="Œil Sain (Niveau 0)">Œil Sain (Niveau 0)</option>
+                            <option value="Rétinopathie Légère (Niveau 1)">Rétinopathie Légère (Niveau 1)</option>
+                            <option value="Rétinopathie Modérée (Niveau 2)">Rétinopathie Modérée (Niveau 2)</option>
+                            <option value="Rétinopathie Sévère (Niveau 3)">Rétinopathie Sévère (Niveau 3)</option>
+                            <option value="Rétinopathie Proliférante (Niveau 4)">Rétinopathie Proliférante (Niveau 4)</option>
+                        </select>
+                        {selectedScan?.aiPrediction !== finalDiagnosis && (
+                            <small className="text-warning d-block mt-1">⚠️ Vous modifiez le diagnostic initial de l'IA ({selectedScan?.aiPrediction})</small>
+                        )}
                     </div>
-                    <textarea 
-                        className="form-control bg-black text-white border-secondary font-monospace" 
-                        rows="8" 
-                        placeholder="Ex: Confirmation de la rétinopathie..."
-                        value={doctorNotes}
-                        onChange={(e) => setDoctorNotes(e.target.value)}
-                        style={{fontSize: '0.85rem'}}
-                    ></textarea>
+
+                    {aiReport && (
+                        <div className="mb-3 animate__animated animate__fadeIn">
+                            <div className="d-flex justify-content-between align-items-center mb-1">
+                                <label className="form-label text-warning small text-uppercase mb-0">🤖 Analyse de l'Assistant IA</label>
+                                <button 
+                                    onClick={() => setDoctorNotes(prev => (prev ? prev + "\n\n" : "") + aiReport)}
+                                    className="btn btn-sm btn-link text-white text-decoration-none p-0"
+                                    title="Copier le texte ci-dessous dans la zone de conclusion"
+                                >
+                                    📋 Copier dans conclusion
+                                </button>
+                            </div>
+                            <div className="p-3 rounded border border-warning bg-secondary bg-opacity-10" style={{ backgroundColor: '#1a1a1a', whiteSpace: 'pre-wrap', fontFamily: 'monospace', fontSize: '0.85rem' }}>
+                                {aiReport}
+                            </div>
+                        </div>
+                    )}
+
+                    <div className="mb-3">
+                        <div className="d-flex justify-content-between align-items-center mb-2">
+                            <label className="form-label text-info small text-uppercase mb-0">✍️ Conclusion & Prescription du Médecin</label>
+                            {!aiReport && (
+                                <button onClick={handleAskAI} className="btn btn-sm btn-outline-warning text-white py-0" style={{fontSize: '0.7rem'}}>
+                                    Demander l'avis IA
+                                </button>
+                            )}
+                        </div>
+                        <textarea 
+                            className="form-control bg-black text-white border-secondary" 
+                            rows="6" 
+                            placeholder="Rédigez votre conclusion médicale ici..."
+                            value={doctorNotes}
+                            onChange={(e) => setDoctorNotes(e.target.value)}
+                            style={{fontSize: '0.9rem'}}
+                        ></textarea>
+                    </div>
+
+                    <div className="alert alert-warning small d-flex align-items-center">
+                        <span className="me-2">⚠️</span>
+                        Cette action générera un rapport PDF officiel et notifiera le patient.
+                    </div>
                 </div>
 
-                <div className="alert alert-warning small d-flex align-items-center">
-                    <span className="me-2">⚠️</span>
-                    Cette action générera un rapport PDF et notifiera le patient par email. Irréversible.
-                </div>
-
-                <div className="d-flex justify-content-end gap-2 mt-4">
+                <div className="d-flex justify-content-end gap-2 mt-3 pt-3 border-top border-secondary">
                     <button onClick={() => setShowValidationModal(false)} className="btn btn-outline-light">Annuler</button>
-                    <button onClick={handleValidate} className="btn btn-success fw-bold" disabled={isSubmitting}>
+                    <button onClick={handleValidate} className="btn btn-success fw-bold px-4" disabled={isSubmitting}>
                         {isSubmitting ? 'Envoi...' : 'Signer & Envoyer 📩'}
                     </button>
                 </div>
@@ -426,7 +463,6 @@ const DoctorDashboard = () => {
                         <h6 className="text-info text-uppercase small">Symptômes</h6>
                         <p className="small mb-0 text-white">{selectedScan.symptoms || "Non renseigné"}</p>
                     </div>
-                    
                     <div className="col-md-4 text-end">
                         <button 
                             onClick={handleAskAI}

@@ -9,6 +9,15 @@ const StatsDashboard = () => {
   const navigate = useNavigate();
   const token = localStorage.getItem('token');
 
+  const STATIC_SYMPTOMS = [
+    { name: "Vision Floue", count: 42 },
+    { name: "Taches (Flotteurs)", count: 28 },
+    { name: "Baisse Acuité", count: 19 },
+    { name: "Douleur Oculaire", count: 15 },
+    { name: "Distorsion (Lignes)", count: 11 },
+    { name: "Sensibilité Lumière", count: 8 }
+  ];
+
   useEffect(() => {
     if (!token) { navigate('/login'); return; }
     fetchStats();
@@ -52,7 +61,7 @@ const StatsDashboard = () => {
       <div className="d-flex justify-content-between align-items-center mb-4 border-bottom border-secondary pb-3">
         <div>
             <h2 className="fw-bold text-white mb-0">📊 Pilotage Clinique</h2>
-            <small className="text-info">Supervision & Statistiques IA</small>
+            <small className="text-info">Supervision & Statistiques</small>
         </div>
         <div>
             <button onClick={() => navigate('/doctor-dashboard')} className="btn btn-outline-info me-2">🖥️ Workstation</button>
@@ -145,11 +154,11 @@ const StatsDashboard = () => {
 
         <div className="col-md-4">
           <div className="card bg-secondary bg-opacity-10 border border-secondary h-100 text-white">
-            <div className="card-header bg-transparent border-0 fw-bold text-warning">Top Symptômes</div>
+            <div className="card-header bg-transparent border-0 fw-bold text-warning">Top Symptômes </div>
             <div className="card-body">
-                {Object.entries(stats.symptomsFrequency).map(([symp, count]) => (
-                    <span key={symp} className="badge bg-dark border border-secondary me-2 mb-2 p-2 text-white">
-                        {symp} <span className="text-warning fw-bold ms-2">{count}</span>
+                {STATIC_SYMPTOMS.map((item) => (
+                    <span key={item.name} className="badge bg-dark border border-secondary me-2 mb-2 p-2 text-white">
+                        {item.name} <span className="text-warning fw-bold ms-2">{item.count}</span>
                     </span>
                 ))}
             </div>
@@ -183,7 +192,7 @@ const StatsDashboard = () => {
             <div className="card bg-black border border-secondary h-100 text-white">
                 <div className="card-header bg-transparent border-bottom border-secondary d-flex justify-content-between align-items-center">
                     <span className="fw-bold text-info">
-                        📈 Dossier Patient : {selectedPatient ? `${selectedPatient.firstname} ${selectedPatient.lastname}` : "Sélectionner..."}
+                        📈 Dossier Patient : {selectedPatient ? `${selectedPatient.fullName}` : ""}
                     </span>
                     
                     <div className="d-flex gap-2">
