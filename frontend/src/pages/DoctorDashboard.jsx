@@ -273,7 +273,7 @@ const DoctorDashboard = () => {
                     {aiReport && (
                         <div className="mb-3 animate__animated animate__fadeIn">
                             <div className="d-flex justify-content-between align-items-center mb-1">
-                                <label className="form-label text-warning small text-uppercase mb-0">🤖 Analyse de l'Assistant IA</label>
+                                <label className="form-label text-warning small text-uppercase mb-0"> Analyse de l'Assistant IA</label>
                                 <button 
                                     onClick={() => setDoctorNotes(prev => (prev ? prev + "\n\n" : "") + aiReport)}
                                     className="btn btn-sm btn-link text-white text-decoration-none p-0"
@@ -468,7 +468,7 @@ const DoctorDashboard = () => {
                             onClick={handleAskAI}
                             className="btn btn-outline-warning fw-bold px-3 me-2"
                         >
-                            🤖 Avis IA
+                           Avis IA
                         </button>
                         <button 
                             onClick={() => setShowValidationModal(true)} 
